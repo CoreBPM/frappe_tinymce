@@ -29,7 +29,7 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
             entity_encoding: 'raw',
             convert_urls: true,
             content_css: false,
-            toolbar_sticky: true,
+            toolbar_sticky: false,
             promotion: false,
             statusbar: false,
             // without images_upload_url set, Upload tab won't show up
@@ -63,3 +63,42 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 
     }
 }
+
+const image_upload_handler_callback = (blobInfo, progress) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.withCredentials = false;
+    xhr.open('POST', '/api/method/upload_file');
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.setRequestHeader('X-Frappe-CSRF-Token', frappe.csrf_token);    
+    
+    xhr.upload.onprogress = (e) => {
+        progress(e.loaded / e.total * 100);
+    };
+    
+    xhr.onload = () => {
+        if (xhr.status === 403) {
+            reject({ message: 'HTTP Error: ' + xhr.status, remove: true });
+            return;
+        }
+      
+        if (xhr.status < 200 || xhr.status >= 300) {
+            reject('HTTP Error: ' + xhr.status);
+            return;
+        }
+      
+        const json = JSON.parse(xhr.responseText);
+        console.log(json);
+        resolve(json.message.file_url);
+    };
+    
+    xhr.onerror = () => {
+      reject('Image upload failed due to a XHR Transport error. Code: ' + xhr.status);
+    };
+    
+    const formData = new FormData();
+    formData.append('is_private', 0);
+    formData.append('folder', "Home");    
+    formData.append('file', blobInfo.blob(), blobInfo.filename());
+    
+    xhr.send(formData);
+});
